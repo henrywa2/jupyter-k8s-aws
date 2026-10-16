@@ -7,6 +7,7 @@ package aws_hyperpod_test
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 
@@ -48,13 +49,37 @@ func renderAccessStrategy(chartDir string, extraArgs ...string) (accessStrategy,
 	return strategy, nil
 }
 
+// Helm refuses to template a chart whose declared dependencies (traefik) aren't
+// vendored under charts/, so build a throwaway copy with dependencies resolved
+// once for the whole suite instead of per spec.
+var builtChartDir string
+
+var _ = BeforeSuite(func() {
+	rootDir, err := filepath.Abs("../../..")
+	Expect(err).NotTo(HaveOccurred())
+
+	tmpDir, err := os.MkdirTemp("", "aws-hyperpod-chart-*")
+	Expect(err).NotTo(HaveOccurred())
+	builtChartDir = filepath.Join(tmpDir, "aws-hyperpod")
+
+	out, err := exec.Command("cp", "-r", filepath.Join(rootDir, "charts", "aws-hyperpod"), builtChartDir).CombinedOutput()
+	Expect(err).NotTo(HaveOccurred(), string(out))
+
+	out, err = exec.Command("helm", "dependency", "build", builtChartDir).CombinedOutput()
+	Expect(err).NotTo(HaveOccurred(), string(out))
+})
+
+var _ = AfterSuite(func() {
+	if builtChartDir != "" {
+		Expect(os.RemoveAll(filepath.Dir(builtChartDir))).To(Succeed())
+	}
+})
+
 var _ = Describe("AWS HyperPod init container", func() {
 	var chartDir string
 
 	BeforeEach(func() {
-		rootDir, err := filepath.Abs("../../..")
-		Expect(err).NotTo(HaveOccurred())
-		chartDir = filepath.Join(rootDir, "charts", "aws-hyperpod")
+		chartDir = builtChartDir
 	})
 
 	// Regression coverage: workspace-base volume, its init container, and the
