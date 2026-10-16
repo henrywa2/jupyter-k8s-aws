@@ -163,6 +163,7 @@ spec:
             sizeLimit: "1Gi"
 
       initContainers:
+        {{- if not .Values.directSSH.enabled }}
         - name: workspace-init-container
           image: "{{ .Values.remoteAccess.ssmSidecarImage.containerRegistry }}/{{ .Values.remoteAccess.ssmSidecarImage.repository }}:{{ .Values.remoteAccess.ssmSidecarImage.tag }}"
           command:
@@ -170,7 +171,7 @@ spec:
           volumeMounts:
             - name: workspace-base
               mountPath: /workspace_base_dir
-        {{- if .Values.directSSH.enabled }}
+        {{- else }}
         - name: direct-ssh-init
           image: "{{ .Values.directSSH.initImage.containerRegistry }}/{{ .Values.directSSH.initImage.repository }}:{{ .Values.directSSH.initImage.tag }}"
           command:
